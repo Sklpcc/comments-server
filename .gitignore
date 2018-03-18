@@ -24,9 +24,6 @@ node_modules/
 # Optional REPL history
 .node_repl_history
 
-# Yarn Integrity file
-.yarn-integrity
-
 # dotenv environment variables file
 .env
 
@@ -34,3 +31,8 @@ node_modules/
 
 # User-specific stuff:
 .idea/
+
+### Extras
+
+# Sqlite databases
+*.sqlite
