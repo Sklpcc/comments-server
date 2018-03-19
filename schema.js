@@ -17,7 +17,7 @@ const Comment = new GraphQL.GraphQLObjectType({
                 // The use of GraphQLString was also evaluated
                 type: GraphQL.GraphQLInt,
                 resolve({createdAt}) {
-                    return new Date(createdAt).getTime()/1000 | 0;
+                    return new Date(createdAt).getTime() / 1000 | 0;
                 },
             },
         }
@@ -76,7 +76,7 @@ const Mutation = new GraphQL.GraphQLObjectType({
                 async resolve(_, args) {
                     let model = await Database.models.comment.findById(args.id);
                     if(model) {
-                        let count = await Database.models.comment.destroy({ where: args });
+                        let count = await Database.models.comment.destroy({where: args});
                         if(count > 0) {
                             return model;
                         } else {
