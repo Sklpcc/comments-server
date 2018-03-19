@@ -64,6 +64,28 @@ const Mutation = new GraphQL.GraphQLObjectType({
                         content: args.content,
                     });
                 },
+            },
+            // type: Comment, based on GitHub's delete mutations return types
+            deleteComment: {
+                type: Comment,
+                args: {
+                    id: {
+                        type: new GraphQL.GraphQLNonNull(GraphQL.GraphQLInt),
+                    },
+                },
+                async resolve(_, args) {
+                    let model = await Database.models.comment.findById(args.id);
+                    if(model) {
+                        let count = await Database.models.comment.destroy({ where: args });
+                        if(count > 0) {
+                            return model;
+                        } else {
+                            throw new Error('Cant delete the record.');
+                        }
+                    } else {
+                        throw new Error('The record doesn\'t exists or has already been deleted.')
+                    }
+                }
             }
         }
     }
