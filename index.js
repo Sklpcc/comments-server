@@ -21,7 +21,6 @@ app.use(function(req, res, next) {
 
 app.use('/graphql', GraphHTTP({
     schema: Schema,
-    pretty: true,
     graphiql: true,
 }));
 
