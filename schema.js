@@ -1,48 +1,106 @@
-import Database from './database';
 import * as GraphQL from 'graphql';
-
-const Comment = new GraphQL.GraphQLObjectType({
-    name: 'Comment',
-    description: 'A comment made by a user.',
-    fields() {
-        return {
-            id: {
-                // Maybe GraphQLID too
-                type: GraphQL.GraphQLString,
-            },
-            content: {
-                type: GraphQL.GraphQLString,
-            },
-            createdAt: {
-                // The use of GraphQLString was also evaluated
-                type: GraphQL.GraphQLInt,
-                resolve({createdAt}) {
-                    return new Date(createdAt).getTime() / 1000 | 0;
-                },
-            },
-        }
-    },
-});
+import Database from './database';
+import CommentConnection, {CommentNode, CommentOrder} from './connections/comments';
 
 const Query = new GraphQL.GraphQLObjectType({
     name: 'Query',
     description: 'Entry endpoint.',
-    fields() {
-        return {
-            comments: {
-                type: new GraphQL.GraphQLList(Comment),
-                args: {
-                    id: {
-                        type: GraphQL.GraphQLID,
-                    },
-                    createdAt: {
-                        type: GraphQL.GraphQLString,
-                    },
+    fields: {
+        comments: {
+            type: CommentConnection,
+            args: {
+                after: {
+                    type: GraphQL.GraphQLString,
                 },
-                resolve(_, args) {
-                    return Database.models.comment.findAll({where: args});
+                before: {
+                    type: GraphQL.GraphQLString,
                 },
-            }
+                first: {
+                    type: GraphQL.GraphQLInt,
+                },
+                last: {
+                    type: GraphQL.GraphQLInt,
+                },
+                orderBy: {
+                    type: CommentOrder,
+                }
+            },
+            // Based on: https://facebook.github.io/relay/graphql/connections.htm#sec-Pagination-algorithm
+            // Naive in-memory implementation, needs optimization
+            async resolve(_, {first, last, before, after, orderBy}) {
+                const order = orderBy ? {
+                    order: [
+                        [orderBy.field, orderBy.direction]
+                    ]
+                } : {};
+                
+                let pageInfo = {
+                    hasPreviousPage: false,
+                    hasNextPage: false,
+                    endCursor: null,
+                    startCursor: null,
+                };
+                
+                let nodes = await Database.models.comment.findAll(order);
+                if(after != null) {
+                    //noinspection EqualityComparisonWithCoercionJS
+                    const index = nodes.findIndex(el => el.id == after);
+                    if(index !== -1) {
+                        nodes.splice(0, index + 1);
+                    }
+                }
+                if(before != null) {
+                    const index = nodes.findIndex(el => el.id == before);
+                    if(index !== -1) {
+                        nodes.splice(index);
+                    }
+                }
+                
+                if(first != null) {
+                    if(first < 0) {
+                        throw new Error('');
+                    } else {
+                        const count = nodes.length;
+                        if(count > first) {
+                            // TODO: If the server can efficiently determine that elements exist prior to after, return true.
+                            nodes.splice(first);
+                            pageInfo.hasNextPage = true;
+                        }
+                    }
+                }
+                
+                if(last != null) {
+                    if(last < 0) {
+                        throw new Error('');
+                    } else {
+                        const count = nodes.length;
+                        if(count > last) {
+                            // TODO: If the server can efficiently determine that elements exist following before, return true.
+                            nodes.splice(0, count - last);
+                            pageInfo.hasPreviousPage = true;
+                        }
+                    }
+                }
+                
+                const edges = nodes.map(el => {
+                    return {
+                        cursor: el.id,
+                        node: el,
+                    };
+                });
+                
+                const totalCount = edges.length;
+                
+                pageInfo.startCursor = totalCount > 0 ? edges[0].cursor : null;
+                pageInfo.endCursor = totalCount > 0 ? edges[totalCount - 1].cursor : null;
+                
+                return {
+                    edges,
+                    nodes,
+                    pageInfo,
+                    totalCount,
+                }
+            },
         }
     },
 });
@@ -53,7 +111,7 @@ const Mutation = new GraphQL.GraphQLObjectType({
     fields() {
         return {
             addComment: {
-                type: Comment,
+                type: CommentNode,
                 args: {
                     content: {
                         type: new GraphQL.GraphQLNonNull(GraphQL.GraphQLString),
@@ -67,7 +125,7 @@ const Mutation = new GraphQL.GraphQLObjectType({
             },
             // type: Comment, based on GitHub's delete mutations return types
             deleteComment: {
-                type: Comment,
+                type: CommentNode,
                 args: {
                     id: {
                         type: new GraphQL.GraphQLNonNull(GraphQL.GraphQLInt),
